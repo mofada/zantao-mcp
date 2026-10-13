@@ -10,18 +10,13 @@ if (!baseUrl || !cookie) {
 const client = new ZentaoClient(baseUrl, cookie)
 
 try {
-	const data = await client.getMyBugs()
+	const data = await client.getBug("8486")
 
-	console.log('Bug 总数：', data.pager.recTotal)
-
-	console.table(
-		data.bugs.map((bug) => ({
-			id: bug.id,
-			title: bug.title,
-			status: bug.status,
-			priority: bug.pri
-		}))
-	)
+	console.log('Bug ID：', data.bug.id)
+	console.log('Bug 标题：', data.bug.title)
+	console.log('Bug 状态：', data.bug.status)
+	console.log('Bug 优先级：', data.bug.pri)
+	console.log('重现步骤：', data.bug.steps ? '已获取' : '无')
 } catch (error) {
-	console.error('请求失败：', error)
+	console.error('获取 Bug 失败：', error)
 }

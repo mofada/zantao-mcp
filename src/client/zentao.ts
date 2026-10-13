@@ -39,4 +39,41 @@ export class ZentaoClient {
 
 		return data as MyBugsResponse;
 	}
+
+	/**
+	 * 根据 Bug ID 获取详情
+	 */
+	async getBug(bugId: string): Promise<any> {
+		if (!/^[1-9]\d*$/.test(bugId)) {
+			throw new Error('Bug ID 必须是正整数字符串')
+		}
+
+		const url = `${this.baseUrl}/bug-view-${bugId}.json`
+
+		const response = await fetch(url, {
+			headers: {
+				Cookie: this.cookie,
+				Accept: 'application/json'
+			},
+			redirect: 'manual'
+		})
+
+		if (!response.ok) {
+			throw new Error(`获取 Bug #${bugId} 失败：HTTP ${response.status}`)
+		}
+
+		const result = await response.json()
+
+		// 检查禅道业务状态
+		if (result.status !== 'success') {
+			throw new Error(`禅道接口返回失败，Bug #${bugId} 可能不存在`)
+		}
+
+		// 解析内层 JSON
+		const data = typeof result.data === 'string'
+			? JSON.parse(result.data)
+			: result.data;
+
+		return data;
+	}
 }
