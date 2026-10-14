@@ -113,34 +113,109 @@ export class ZentaoClient {
 		return buffer
 	}
 
+
+	/**
+	 * 禅道通用请求方法
+	 */
 	private async request<T>(path: string): Promise<T> {
-		const url = `${this.baseUrl}/${path.replace(/^\/+/, '')}`;
+		// 1. 拼接请求地址
+		const url = `${this.baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`
 
-		console.error('[ZentaoClient] Request URL:', url)
+		let response: Response
 
-		const response = await fetch(url, {
-			method: 'GET',
-			headers: {
-				Cookie: this.cookie,
-				Accept: 'application/json'
-			},
-			redirect: 'manual'
-		})
+		// 2. 发送 HTTP 请求
+		try {
+			response = await fetch(url, {
+				method: 'GET',
+				headers: {
+					Cookie: this.cookie,
+					Accept: 'application/json',
+				},
+				redirect: 'manual',
+				signal: AbortSignal.timeout(15_000),
+			})
+		} catch (error) {
+			if (
+				error instanceof Error &&
+				(error.name === 'TimeoutError' || error.name === 'AbortError')
+			) {
+				throw new Error('禅道请求超时，请检查服务器连接状态', {
+					cause: error,
+				})
+			}
 
+			throw new Error('禅道网络请求失败', {
+				cause: error,
+			})
+		}
+
+		// 3. 判断是否发生重定向
+		if (response.status >= 300 && response.status < 400) {
+			throw new Error(
+				'禅道会话可能已失效，或接口发生重定向，请检查 ZENTAO_COOKIE 和请求地址',
+			)
+		}
+
+		// 4. 检查 HTTP 状态
 		if (!response.ok) {
-			throw new Error(`请求失败：HTTP ${response.status}`)
+			if (response.status === 404) {
+				throw new Error('禅道接口不存在或请求资源不存在（HTTP 404）')
+			}
+
+			if (response.status === 401 || response.status === 403) {
+				throw new Error('禅道请求未授权或无访问权限，请检查 Cookie')
+			}
+
+			throw new Error(`禅道请求失败：HTTP ${response.status}`)
 		}
 
-		const result = await response.json()
+		// 5. 获取原始响应内容
+		// 旧版禅道可能以 text/html 返回 JSON，因此不能只依赖 Content-Type
+		const rawText = await response.text()
 
+		// 6. 解析外层 JSON
+		let result: unknown
+
+		try {
+			result = JSON.parse(rawText)
+		} catch {
+			throw new Error(
+				'禅道返回了非 JSON 内容，可能是登录页面或接口地址错误',
+			)
+		}
+
+		// 7. 校验外层响应结构
+		if (
+			typeof result !== 'object' ||
+			result === null ||
+			!('status' in result) ||
+			!('data' in result)
+		) {
+			throw new Error('禅道响应格式异常：缺少 status 或 data')
+		}
+
+		// 8. 检查禅道业务状态
 		if (result.status !== 'success') {
-			throw new Error(`禅道接口返回失败：${result.message ?? '未知错误'}`)
+			const message =
+				'message' in result && typeof result.message === 'string'
+					? result.message
+					: '未知错误'
+
+			throw new Error(`禅道接口返回失败：${message}`)
 		}
 
-		return (
-			typeof result.data === 'string'
+		// 9. 解析 data 字段（可能是 JSON 字符串）
+		let data: unknown
+
+		try {
+			data = typeof result.data === 'string'
 				? JSON.parse(result.data)
 				: result.data
-		) as T
+		} catch {
+			throw new Error('禅道响应格式异常：data 不是有效的 JSON')
+		}
+
+		// 10. 返回业务数据
+		return data as T
 	}
 }

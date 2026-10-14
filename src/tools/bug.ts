@@ -1,7 +1,7 @@
 import type {ZentaoClient} from '../client/zentao.js'
 import {McpServer} from "@modelcontextprotocol/server";
 import {z} from "zod";
-import {detectImageMime} from "../util/file.js";
+import {detectImageMime} from "../utils/file.js";
 import {parseBugHtml} from "../utils/html.js";
 
 export function registerBugTools(server: McpServer, client: ZentaoClient) {
