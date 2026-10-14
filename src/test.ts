@@ -9,6 +9,14 @@ if (!baseUrl || !cookie) {
 
 const client = new ZentaoClient(baseUrl, cookie)
 
+const fileId = '13424'
+
+const buffer = await client.getAttachment(fileId)
+
+console.log('附件 ID：', fileId)
+console.log('实际大小：', buffer.length)
+console.log('文件头：', buffer.subarray(0, 8).toString('hex'))
+
 try {
 	const data = await client.getBug("8486")
 
