@@ -1,63 +1,62 @@
 # ZenTao MCP Server
 
-基于 **TypeScript + Model Context Protocol（MCP）** 开发的禅道 MCP 服务，为 Codex 等支持 MCP 协议的 AI 编程工具提供禅道 Bug 查询能力。
+基于 **TypeScript + Model Context Protocol（MCP）** 的禅道 MCP Server，让 Codex、MCP Inspector 等兼容 MCP 的客户端查询 Bug、查看复现步骤及读取截图。
 
-项目主要面向私有化部署的旧版禅道，当前基于 **禅道 11.5.1** 进行开发和验证。
+当前主要针对**私有化部署的禅道 11.5.1** 开发和验证。项目优先提供**只读**功能，不会自动修改禅道 Bug 状态或提交解决方案。
+
+> **数据安全提醒**：当前 `zentao_get_bug` 会返回解析后的原始复现文本，其中可能包含测试账号、密码及内部业务信息；`zentao_get_attachment` 会返回图片内容。**目前尚未实现通用脱敏或凭据隔离**。在连接云端 AI 或共享本工具前，先确认企业授权及数据处理要求。
 
 ## ✨ 项目背景
 
-在日常研发过程中，开发人员需要频繁打开禅道查看 Bug 列表、重现步骤、问题截图，再切换到 IDE 中定位代码。
+开发人员往往需要在禅道、浏览器和 IDE 之间反复切换，查询 Bug、检查重现步骤和截图，再定位代码。本项目将禅道的只读查询能力封装为 MCP 工具，减少重复操作，并为后续 AI 辅助定位、修复和验证提供数据入口。
 
-本项目希望通过 MCP 协议，将禅道的缺陷管理能力接入 AI 编程工具，实现从 Bug 查询、问题分析到代码修复的辅助开发流程。
+当前支持：
 
-预期使用场景：
+- 获取登录账号的 Bug 列表。
+- 根据 Bug ID 获取标题、状态、优先级、指派人和复现步骤。
+- 解析禅道富文本及不完整 HTML，提取图片引用。
+- 返回 Bug 附件清单，通过附件 ID 获取 PNG/JPEG 图片。
+- 使用 MCP Inspector 调试工具，并通过本地 Mock HTTP 服务验证 MCP 调用链。
 
-- 查询当前账号待处理的 Bug
-- 根据 Bug ID 获取详细信息和重现步骤
-- 读取 Bug 中关联的截图
-- 结合本地项目源码分析问题原因
-- 辅助生成修复方案和验证建议
-
-目前优先实现只读能力，避免 AI 工具直接修改禅道业务数据。
+**暂不包含**自动修改源码、自动执行浏览器测试、自动登录禅道等功能；它们属于后续 AI 工作流的扩展方向。
 
 ## 🛠 技术栈
 
 | 技术 | 用途 |
-|---|---|
-| Node.js 22+ | JavaScript 运行环境 |
-| TypeScript | 类型安全与业务代码开发 |
-| MCP TypeScript SDK | MCP 服务端开发 |
-| Zod | MCP 工具参数校验 |
+| --- | --- |
+| Node.js 22+ | 运行时、内置测试框架与 Fetch API |
+| TypeScript（ESM / NodeNext） | 服务端开发、类型检查及编译 |
+| MCP TypeScript SDK | MCP Server、Client、stdio 通信 |
+| Zod | 工具参数校验 |
+| Cheerio | Bug HTML 解析和图片引用提取 |
 | pnpm | 依赖管理 |
-| MCP Inspector | MCP 工具调试 |
-| stdio | MCP Client 与 Server 之间的通信方式 |
+| tsx | 开发阶段直接执行 TypeScript |
+| MCP Inspector | MCP 连接与工具调试 |
 
 ## ✅ 功能进度
 
-### 已实现
+### 已实现并验证
 
-- [x] MCP Server 初始化
-- [x] stdio 通信
-- [x] `zentao_ping` 连通性测试工具
-- [x] `ZentaoClient` HTTP 客户端
-- [x] 禅道 Cookie 认证请求
-- [x] 禅道旧版双层 JSON 响应解析
-- [x] 当前账号被指派的 Bug 列表查询
-- [x] `zentao_list_my_bugs` MCP 工具
-- [x] MCP Inspector 调用验证
-- [x] 通过依赖注入共享客户端实例
+- [x] MCP Server 初始化、stdio 通信、依赖注入。
+- [x] `zentao_ping`：检查服务是否可调用。
+- [x] `zentao_list_my_bugs`：读取当前账号的 Bug 列表。
+- [x] `zentao_get_bug`：按 Bug ID 获取详情、复现文本、图片引用和附件元数据。
+- [x] `zentao_get_attachment`：下载并返回 PNG/JPEG 图片。
+- [x] `ZentaoClient`：Cookie 认证、旧版禅道双层 JSON 解析、HTTP 异常及超时处理。
+- [x] Bug HTML 解析，兼容部分不规范富文本。
+- [x] 图片文件签名初步识别与附件大小限制（10 MiB）。
+- [x] MCP Inspector 手动验证及 MCP Client/Server 自动化集成测试。
+- [x] **31 项测试通过**（截至 2026-10-14，包括单元测试与 MCP 集成测试）。
 
-### 计划实现
+### 待完善 / 可选扩展
 
-- [ ] 根据 Bug ID 查询详细信息
-- [ ] 解析 Bug 重现步骤中的富文本
-- [ ] 获取 Bug 截图及附件
-- [ ] 自动登录及 Session 续期
-- [ ] Bug 列表分页查询
-- [ ] Bug 状态和优先级筛选
-- [ ] 响应数据校验与敏感信息脱敏
-- [ ] Codex 集成验证
-- [ ] 自动化测试
+- [ ] 自动登录与会话续期（当前需手动更新 Cookie）。
+- [ ] 通用的敏感信息保护、凭据隔离和访问策略。
+- [ ] 更多附件类型（PDF、Word、Excel、日志等）。
+- [ ] 更多禅道版本与安装路径的兼容验证。
+- [ ] Codex 真实工作流集成验证。
+- [ ] 可选的 Bug 筛选、分页（**当前需求暂不开发**；默认列表视图有单页限制）。
+- [ ] 与浏览器自动化测试及 AI 代码修复流程协作。
 
 ## 📁 项目结构
 
@@ -65,19 +64,29 @@
 zentao-mcp/
 ├── src/
 │   ├── client/
-│   │   ├── zentao.ts      # 禅道 HTTP 客户端
-│   │   └── types.ts       # 禅道业务类型
+│   │   ├── zentao.ts           # 禅道 HTTP 客户端
+│   │   └── types.ts            # 禅道响应类型
 │   ├── tools/
-│   │   └── bug.ts         # Bug MCP 工具注册
-│   ├── index.ts           # 应用入口、依赖初始化
-│   ├── server.ts          # MCP Server 初始化
-│   └── test.ts            # 禅道客户端调试
-├── .env                   # 本地环境变量（不提交）
-├── .env.example           # 环境变量示例
-├── .gitignore
+│   │   └── bug.ts              # Bug MCP 工具
+│   ├── utils/
+│   │   ├── html.ts             # 富文本解析
+│   │   └── file.ts             # 图片格式识别
+│   ├── index.ts                # 程序入口
+│   └── server.ts               # MCP Server 初始化
+├── tests/
+│   ├── client/
+│   │   ├── request.test.ts
+│   │   └── attachment.test.ts
+│   ├── helpers/               # Mock Client / Mock 禅道 / MCP Client
+│   ├── mcp/                   # MCP 集成测试
+│   └── utils/                 # HTML / 文件格式测试
+├── dist/                       # 编译产物（不提交）
+├── .env                        # 本地配置（不提交）
+├── .env.example
+├── tsconfig.json
+├── tsconfig.build.json         # 若已按编译步骤配置
 ├── package.json
 ├── pnpm-lock.yaml
-├── tsconfig.json
 └── README.md
 ```
 
@@ -85,10 +94,10 @@ zentao-mcp/
 
 ### 1. 环境要求
 
-- Node.js 22 或更高版本
-- pnpm
-- 可访问禅道服务器的网络环境
-- 具有 Bug 查询权限的禅道账号
+- Node.js 22 或更高版本。
+- pnpm。
+- 可访问目标禅道服务器的网络环境。
+- 有相应 Bug/附件查看权限的禅道登录账号。
 
 ### 2. 安装依赖
 
@@ -98,63 +107,76 @@ pnpm install
 
 ### 3. 配置环境变量
 
-复制 `.env.example` 为 `.env`。
+复制 `.env.example` 为 `.env`，填入自己有权访问的禅道地址和有效登录 Cookie：
 
 ```dotenv
 ZENTAO_URL=http://your-zentao-server/zentao
 ZENTAO_COOKIE=
 ```
 
-配置说明：
+| 变量 | 用途 |
+| --- | --- |
+| `ZENTAO_URL` | 禅道根地址，**不包括** `my-bug.json` 等接口路径 |
+| `ZENTAO_COOKIE` | 当前有效的禅道会话 Cookie |
 
-| 变量 | 说明 |
-|---|---|
-| `ZENTAO_URL` | 禅道服务根地址 |
-| `ZENTAO_COOKIE` | 当前有效的禅道登录 Cookie |
+`.env` 不应提交到版本库。当前认证方式使用 Cookie；会话失效后需自行更新。
 
-**注意：** 当前版本暂时使用 Cookie 认证，Cookie 失效后需要更新。后续将实现自动登录和 Session 管理。
-
-不要将 `.env`、真实 Cookie 或其他敏感凭据提交到 Git 仓库。
-
-### 4. 启动 MCP Server
+### 4. 开发模式运行
 
 ```bash
 pnpm dev
 ```
 
-项目使用 Node.js 的 `--env-file` 加载本地环境变量，并通过 `tsx` 执行 TypeScript 代码。
+开发模式通常通过 `tsx` 执行 TypeScript。MCP Server 使用 **stdio** 与客户端通信，**无需**监听 HTTP 端口。直接运行时，程序等待输入而没有业务日志属于正常情况；不要向 stdout 输出普通调试日志，以免破坏协议数据。
 
-MCP Server 采用 stdio 通信，不需要监听 HTTP 端口。
+### 5. 编译后运行（推荐供 Codex 调用）
 
-启动后终端保持运行并等待客户端消息属于正常现象。
+如果 `package.json` 已配置构建脚本及 `tsconfig.build.json`：
 
-### 5. TypeScript 类型检查
+```bash
+pnpm build
+pnpm start
+```
+
+建议脚本定义：
+
+```json
+{
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node --env-file=.env dist/index.js"
+  }
+}
+```
+
+编译模式执行的是 `dist/index.js`，不依赖运行时 `tsx`。**修改源代码后需要重新构建**，客户端才能使用最新版本。`dist/` 建议加入 `.gitignore`。
+
+### 6. 类型检查和测试
 
 ```bash
 pnpm typecheck
+pnpm run test:unit
 ```
 
-### 6. 测试禅道客户端
+当前测试脚本可配置为：
 
-```bash
-pnpm run test:client
+```json
+{
+  "scripts": {
+    "test:unit": "node --import tsx --test \"tests/**/*.test.ts\""
+  }
+}
 ```
 
-该命令用于验证禅道 HTTP 请求、认证以及数据解析是否正常。
+测试覆盖 HTTP 状态、Cookie、双层 JSON、附件读取与限流、HTML 和图片格式识别，以及真实 stdio MCP 客户端与本地 Mock 禅道 HTTP 服务之间的调用流程。Mock 测试不使用真实账号或企业数据。
 
-## 🔌 MCP 工具说明
+`pnpm run test:client` 用于直接连接真实禅道进行手动验证，应在授权网络中运行，并避免输出或提交含凭据的结果。
+
+## 🔌 MCP 工具
 
 ### `zentao_ping`
 
-检查 MCP Server 是否正常工作。
-
-参数：
-
-| 参数 | 类型 | 说明 |
-|---|---|---|
-| `message` | string | 测试消息，默认 `hello` |
-
-示例：
+用于检查 MCP Server 是否正常工作。
 
 ```json
 {
@@ -162,180 +184,190 @@ pnpm run test:client
 }
 ```
 
-返回示例：
-
-```text
-ZenTao MCP Server: 你好
-```
-
 ### `zentao_list_my_bugs`
 
-获取当前禅道登录账号被指派的 Bug 列表。
-
-参数：无。
-
-返回示例（模拟数据）：
+获取当前登录账号的 Bug 列表，**无需参数**。示例结果：
 
 ```json
 {
-  "total": 2,
+  "total": 1,
   "bugs": [
     {
       "id": "1001",
-      "title": "示例：保存表单时提示数据不存在",
+      "title": "模拟 Bug：保存失败",
       "status": "active",
       "priority": "3",
-      "severity": "3"
-    },
-    {
-      "id": "1002",
-      "title": "示例：编辑页面未正确显示标签页",
-      "status": "active",
-      "priority": "2",
       "severity": "3"
     }
   ]
 }
 ```
 
-当前工具读取默认列表视图，尚未实现自动分页，因此在 Bug 数量超过单页限制时，不能保证返回全部数据。
+使用禅道当前默认列表视图，暂不自动分页。
+
+### `zentao_get_bug`
+
+按 Bug ID 读取详情，并将富文本步骤转换为可读文本。参数：
+
+```json
+{
+  "bugId": "1001"
+}
+```
+
+示例结果（全部为模拟数据）：
+
+```json
+{
+  "id": "1001",
+  "title": "模拟 Bug：编辑后保存失败",
+  "status": "active",
+  "priority": "3",
+  "severity": "3",
+  "assignedTo": "developer",
+  "steps": {
+    "text": "[步骤]\n1. 登录测试系统\n2. 打开编辑页面\n3. 点击保存\n[结果]\n提示保存失败\n[期望]\n保存成功",
+    "images": ["/zentao/file-read-100.png"]
+  },
+  "attachments": [
+    {
+      "id": "100",
+      "name": "example.png",
+      "extension": "png",
+      "size": 1024
+    }
+  ]
+}
+```
+
+注意：`steps.images` 来自 HTML 中的图片地址，而 `attachments` 来自 `bug.files` 附件元数据；**两者不一定一一对应**，不能直接把图片 URL 中的数字当作附件 ID。
+
+### `zentao_get_attachment`
+
+按附件 ID 读取图片：
+
+```json
+{
+  "fileId": "100"
+}
+```
+
+当前支持 PNG/JPEG，通过文件签名识别格式。返回 MCP `image` 内容（Base64 + MIME 类型），而不是 JSON 文本；是否能显示和理解图片取决于 MCP Host 与模型。其他文件类型暂不支持。单文件限制为 10 MiB。
 
 ## 🧪 MCP Inspector 调试
 
-运行：
+安装后可通过以下命令启动 Inspector：
 
 ```bash
-pnpm dlx @modelcontextprotocol/inspector pnpm dev
+pnpm dlx @modelcontextprotocol/inspector
 ```
 
-在 Inspector 中选择 stdio 连接方式。
+在 Inspector 中选择 `stdio`，设置启动命令和工作目录，例如：
 
-配置示例：
-
-| 配置项 | 值 |
-|---|---|
-| Server ID | `zentao-mcp` |
+| 配置项 | 示例 |
+| --- | --- |
 | Transport | `stdio` |
-| Command | `pnpm` |
-| Arguments | `dev` |
-| Working directory | 项目根目录 |
+| Command | `node` |
+| Arguments | `--env-file=.env dist/index.js`（已编译时） |
+| Working directory | 本项目根目录 |
 
-连接成功后，可以在 Tools 页面查看并调用：
+也可以在开发环境中用 `pnpm dev` 启动。Windows 下请确保 Inspector 能解析相应命令，必要时使用可执行文件绝对路径。
 
-- `zentao_ping`
-- `zentao_list_my_bugs`
+连接后检查工具发现及调用结果。Inspector 若报 `403`，先检查访问令牌及 Origin 配置，不要把 Inspector 调试代理直接开放到公网。
 
-运行 Inspector 时应保留本地访问认证，不建议将调试服务暴露到公网。
+## 🤖 Codex 集成（待实际验证）
+
+对于**支持本地 stdio 的 Codex CLI/IDE 环境**，可以配置用户目录中的 `.codex/config.toml`（路径按操作系统和安装方式调整）：
+
+```toml
+[mcp_servers.zentao]
+command = "node"
+args = [
+  "--env-file=E:/WebStorm/zentao-mcp/.env",
+  "E:/WebStorm/zentao-mcp/dist/index.js"
+]
+cwd = "E:/WebStorm/zentao-mcp"
+```
+
+这是 Windows 路径示例，请替换为自己的实际安装位置。使用前运行 `pnpm build`。可通过 Codex CLI 的 `codex mcp list` 检查配置，但**目前尚未完成真实 Codex 调用验证**。
+
+ChatGPT 中仅接收“服务器 URL”的自定义 MCP 入口属于远程连接场景，不能直接填写本地 `dist/index.js`。需要先提供受支持的远程 MCP 服务及适当鉴权，**不要直接暴露公司内网禅道**。
 
 ## 🏗 架构设计
 
-项目采用分层设计和依赖注入，减少 MCP 协议代码与禅道业务代码的耦合。
-
 ```text
-MCP Client
-    │
-    │ JSON-RPC / stdio
-    ▼
-MCP Server
-    │
-    │ tools/call
-    ▼
-Tool Handler
-    │
-    │ 依赖注入
-    ▼
-ZentaoClient
-    │
-    │ HTTP / Cookie
-    ▼
-ZenTao 11.5.1
+Codex / MCP Inspector / 其他 MCP Client
+                │
+          JSON-RPC / stdio
+                ▼
+             MCP Server
+                │
+          tools/list / tools/call
+                ▼
+             Tool Handler
+                │
+          依赖注入、数据整理
+                ▼
+             ZentaoClient
+                │
+             HTTP + Cookie
+                ▼
+           ZenTao 11.5.1
 ```
 
-### 主要模块职责
+- `src/index.ts`：加载配置、创建 `ZentaoClient`、启动服务。
+- `src/server.ts`：创建 MCP Server 并注册工具。
+- `src/tools/bug.ts`：工具参数校验、调用业务客户端、构造 MCP `content`。
+- `src/client/zentao.ts`：请求封装、Cookie、JSON 解析、附件流式读取、错误处理。
+- `src/client/types.ts`：响应与附件等业务类型。
+- `src/utils/html.ts`：解析富文本和图片引用。
+- `src/utils/file.ts`：识别 PNG/JPEG 文件签名。
 
-**index.ts**
+采用依赖注入，让多个 MCP 工具复用同一个 HTTP 客户端，也便于独立测试。
 
-负责创建禅道客户端、注入依赖及启动 MCP Server。
+## 📡 禅道 11.5.1 接口兼容性
 
-**server.ts**
-
-负责 MCP Server 初始化和工具注册。
-
-**tools/bug.ts**
-
-负责定义 Bug 工具名称、描述、参数 Schema，以及将业务数据转换成 MCP Tool Result。
-
-**client/zentao.ts**
-
-负责向禅道发送 HTTP 请求、携带认证信息、解析接口响应。
-
-**client/types.ts**
-
-定义禅道接口相关的 TypeScript 类型。
-
-### 为什么使用依赖注入？
-
-由程序入口统一创建 `ZentaoClient`，再传递给 MCP Server 和工具注册函数，避免每次工具调用时重复创建客户端。
-
-这种设计有利于：
-
-- 统一管理认证状态
-- 在不同 MCP 工具间复用客户端
-- 减少模块之间的直接依赖
-- 后续引入 Mock Client 进行单元测试
-- 支持 Session 自动续期
-
-## 📡 禅道接口兼容性
-
-当前项目主要适配禅道 11.5.1 的旧版 JSON 页面接口，例如：
+目前实测的旧版页面式接口：
 
 ```http
 GET /zentao/my-bug.json
+GET /zentao/bug-view-1001.json
+GET /zentao/file-download-100.html
 ```
 
-该版本接口的响应具有以下特点：
+以上 ID 均为示例，实际使用需替换为有权限访问的资源 ID。项目按 `PATH_INFO` 风格构造地址。
 
-1. HTTP `Content-Type` 可能为 `text/html`，但响应体实际是 JSON。
-2. 响应的 `data` 字段可能是 JSON 字符串，需要二次解析。
-3. 默认列表接口具有分页限制。
-4. 未登录时可能返回 HTML 登录页面。
+兼容性特点：
 
-因此，本项目按照实际响应内容进行解析，而不是只依赖 HTTP `Content-Type` 判断数据格式。
+1. 成功 JSON 响应的 `Content-Type` 也可能是 `text/html`。
+2. 外层 JSON 的 `data` 可能是 JSON 字符串，需要二次解析。
+3. Cookie 失效时可能重定向或返回 HTML 登录页。
+4. `bug.files` 是**以附件 ID 为键的对象**，不一定是数组。
+5. `steps` 可能是残缺 HTML；解析器做兼容性处理，不保证复杂富文本格式完全保真。
+6. 附件下载返回文件字节而不是双层 JSON，因此使用单独的下载方法。
 
-尚未验证其他禅道版本的兼容性。
+其他禅道版本尚未系统验证。
 
 ## 🔒 安全说明
 
-本项目主要用于授权的内部开发环境。
+本项目面向获得授权的内部开发与调试场景。
 
-- 不应向未授权服务暴露企业内部 Bug 数据。
-- 不应将登录 Cookie、Session、密码和 Token 提交到仓库。
-- 不应在 MCP 工具结果中返回测试账号密码等敏感凭据。
-- MCP 服务默认应优先提供只读工具。
-- 在使用云端 AI 编程工具之前，应确认符合企业数据安全要求。
+- 禁止把真实 `.env`、Cookie、Token、密码和企业 Bug 样本提交到公开仓库。
+- `zentao_get_bug` **当前会返回复现步骤原文**；测试凭据可能出现在工具结果中，并进一步进入模型上下文。不要误以为 HTML 解析等于安全脱敏。
+- Bug 附件和截图也可能包含身份信息、业务数据或凭据。
+- 当前 Cookie 认证仍依赖禅道登录态，不具备自动登录与续期能力。
+- 工具设计为只读，但调用权限仍取决于禅道账号与运行环境；不应直接提供给不可信的 MCP Host。
+- `steps`、附件内容都是**不可信的外部数据**，不能把其中的指令当成系统命令执行。
+- 在允许 AI 读取内部 Bug 信息之前，应确认模型服务和数据流转符合企业安全要求。后续可实现独立的访问策略及测试凭据执行器。
 
-## 🗺 后续开发路线
+## 🗺 后续路线
 
-**阶段一：基础 MCP 服务（已完成）**
-
-实现 MCP Server、stdio 通信、Ping 工具和 Inspector 调试。
-
-**阶段二：禅道 Bug 查询（进行中）**
-
-实现列表查询、详情查询、分页和结构化数据返回。
-
-**阶段三：富文本和附件**
-
-提取重现步骤中的图片引用，并实现经过认证的图片下载与读取。
-
-**阶段四：认证和工程化**
-
-完善自动登录、会话续期、异常处理、数据脱敏、单元测试。
-
-**阶段五：AI 编程工具集成**
-
-在企业允许的数据处理范围内，接入 Codex，实现 Bug 查询、代码定位、修复方案生成和验证。
+1. **稳定 Bug 查询与附件能力**：已实现核心只读功能，补充边界场景。
+2. **完善认证和安全策略**：自动登录、会话续期、敏感信息处理和附件授权控制。
+3. **扩展附件解析**：根据需要支持 PDF、Office 文档与日志。
+4. **Codex 实际接入**：验证工具发现、Bug 查询、截图分析。
+5. **AI 辅助修复闭环**：与代码仓库、Playwright 等独立组件协作完成复现、修复和回归测试；不把浏览器和代码修改职责强行塞进禅道查询 MCP。
 
 ## 📄 License
 
-暂未指定开源许可证。项目中的企业内部地址、账号、Bug 数据和业务信息不属于公开示例内容。
+暂未指定开源许可证。公开仓库中的源码不代表企业内部禅道数据或凭据可以公开使用。
