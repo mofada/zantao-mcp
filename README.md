@@ -84,7 +84,8 @@ zentao-mcp/
 ├── .env                        # 本地配置（不提交）
 ├── .env.example
 ├── tsconfig.json
-├── tsconfig.build.json         # 若已按编译步骤配置
+├── tsconfig.build.json         # 构建配置，仅编译 src，排除 tests
+├── mise.toml                   # Node.js 22 环境配置
 ├── package.json
 ├── pnpm-lock.yaml
 └── README.md
@@ -95,7 +96,7 @@ zentao-mcp/
 ### 1. 环境要求
 
 - Node.js 22 或更高版本。
-- pnpm。
+- pnpm（仓库当前锁文件格式为 `6.0`，可使用 pnpm 8 安装）。
 - 可访问目标禅道服务器的网络环境。
 - 有相应 Bug/附件查看权限的禅道登录账号。
 
@@ -104,6 +105,8 @@ zentao-mcp/
 ```bash
 pnpm install
 ```
+
+若本机 pnpm 提示锁文件版本不兼容，可使用 `corepack pnpm@8.15.9 install --frozen-lockfile` 安装现有锁定依赖。
 
 ### 3. 配置环境变量
 
@@ -116,8 +119,10 @@ ZENTAO_COOKIE=
 
 | 变量 | 用途 |
 | --- | --- |
-| `ZENTAO_URL` | 禅道根地址，**不包括** `my-bug.json` 等接口路径 |
-| `ZENTAO_COOKIE` | 当前有效的禅道会话 Cookie |
+| `ZENTAO_URL` | 必填，禅道应用根地址，包含实际部署子路径（如 `/zentao`），**不包括** `my-bug.json` 等接口路径 |
+| `ZENTAO_COOKIE` | 必填，当前有效的完整 Cookie 请求头值，多个键值对用分号分隔 |
+
+Cookie 包含空格或多个键值对时，可写为 `ZENTAO_COOKIE="session_name=example; other_key=example"`（仅为格式示例）。入口只检查两个变量是否非空，实际认证在查询时进行。
 
 `.env` 不应提交到版本库。当前认证方式使用 Cookie；会话失效后需自行更新。
 
@@ -127,29 +132,18 @@ ZENTAO_COOKIE=
 pnpm dev
 ```
 
-开发模式通常通过 `tsx` 执行 TypeScript。MCP Server 使用 **stdio** 与客户端通信，**无需**监听 HTTP 端口。直接运行时，程序等待输入而没有业务日志属于正常情况；不要向 stdout 输出普通调试日志，以免破坏协议数据。
+在项目根目录执行命令，Node.js 通过 `--env-file=.env` 加载配置，再通过 `tsx` 执行 TypeScript。MCP Server 使用 **stdio** 与客户端通信，**无需**监听 HTTP 端口。直接运行时，程序等待输入而没有业务日志属于正常情况；不要向 stdout 输出普通调试日志，以免破坏协议数据。
 
 ### 5. 编译后运行（推荐供 Codex 调用）
 
-如果 `package.json` 已配置构建脚本及 `tsconfig.build.json`：
+项目已配置构建和启动脚本，在项目根目录执行：
 
 ```bash
 pnpm build
 pnpm start
 ```
 
-建议脚本定义：
-
-```json
-{
-  "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "start": "node --env-file=.env dist/index.js"
-  }
-}
-```
-
-编译模式执行的是 `dist/index.js`，不依赖运行时 `tsx`。**修改源代码后需要重新构建**，客户端才能使用最新版本。`dist/` 建议加入 `.gitignore`。
+`pnpm build` 使用 `tsconfig.build.json` 编译 `src/`，不包含测试文件；`pnpm start` 加载 `.env` 并运行 `dist/index.js`，不依赖运行时 `tsx`。**修改源代码后需要重新构建**，客户端才能使用最新版本。`dist/` 已加入 `.gitignore`。
 
 ### 6. 类型检查和测试
 
@@ -158,25 +152,19 @@ pnpm typecheck
 pnpm run test:unit
 ```
 
-当前测试脚本可配置为：
+`typecheck` 检查 `src/` 下的源码；`test:unit` 使用 Node.js 内置测试框架和 `tsx` 运行 `tests/**/*.test.ts`，同时包含单元测试与 MCP 集成测试，无需配置真实 `.env`。
 
-```json
-{
-  "scripts": {
-    "test:unit": "node --import tsx --test \"tests/**/*.test.ts\""
-  }
-}
-```
+测试覆盖 HTTP 状态、Cookie、双层 JSON、附件读取与大小限制、HTML 和图片格式识别。MCP 集成测试覆盖四个工具的发现、Ping 调用，以及真实 stdio MCP 客户端到本地 Mock 禅道 HTTP 服务的 Bug 列表调用；尚未覆盖详情和附件工具的完整 MCP 调用链。Mock 测试不使用真实账号或企业数据。
 
-测试覆盖 HTTP 状态、Cookie、双层 JSON、附件读取与限流、HTML 和图片格式识别，以及真实 stdio MCP 客户端与本地 Mock 禅道 HTTP 服务之间的调用流程。Mock 测试不使用真实账号或企业数据。
-
-`pnpm run test:client` 用于直接连接真实禅道进行手动验证，应在授权网络中运行，并避免输出或提交含凭据的结果。
+当前没有 `test:client` 脚本。真实禅道联调可使用下文的 MCP Inspector，在配置好 `.env` 后调用相应工具。
 
 ## 🔌 MCP 工具
 
+列表和详情工具将 JSON 序列化到 MCP 响应的 `content[0].text` 中，下文展示的是该文本解析后的数据，并非顶层 `structuredContent`。这两个工具捕获查询异常后返回 `isError: true` 和错误文本。
+
 ### `zentao_ping`
 
-用于检查 MCP Server 是否正常工作。
+用于检查 MCP Server 是否正常工作，不会请求禅道或验证 Cookie。`message` 是可选字符串，默认值为 `Hello, MCP!`；返回文本为 `ZenTao MCP Server: <message>`。
 
 ```json
 {
@@ -203,11 +191,11 @@ pnpm run test:unit
 }
 ```
 
-使用禅道当前默认列表视图，暂不自动分页。
+使用禅道当前默认列表视图，暂不支持筛选参数或自动分页。`total` 来自 `pager.recTotal`，代表接口报告的记录总数，可能大于当前页的 `bugs.length`；`priority` 映射自禅道的 `pri`。
 
 ### `zentao_get_bug`
 
-按 Bug ID 读取详情，并将富文本步骤转换为可读文本。参数：
+按 Bug ID 读取详情，并将富文本步骤转换为可读文本。`bugId` 必须为不带前导零的正整数字符串，不能传数字类型、`"0"` 或 `"01"`。参数：
 
 ```json
 {
@@ -242,9 +230,11 @@ pnpm run test:unit
 
 注意：`steps.images` 来自 HTML 中的图片地址，而 `attachments` 来自 `bug.files` 附件元数据；**两者不一定一一对应**，不能直接把图片 URL 中的数字当作附件 ID。
 
+解析器移除 `script`、`style`、`noscript` 文本，整理段落和空白，并对图片地址去重；图片地址保留原值，不会补全为绝对 URL 或自动下载。缺少步骤时返回空文本和空图片数组，缺少附件时返回空数组；`assignedTo` 未提供时会从 JSON 结果中省略。
+
 ### `zentao_get_attachment`
 
-按附件 ID 读取图片：
+按附件 ID 读取图片，`fileId` 与 `bugId` 一样必须为不带前导零的正整数字符串：
 
 ```json
 {
@@ -253,6 +243,8 @@ pnpm run test:unit
 ```
 
 当前支持 PNG/JPEG，通过文件签名识别格式。返回 MCP `image` 内容（Base64 + MIME 类型），而不是 JSON 文本；是否能显示和理解图片取决于 MCP Host 与模型。其他文件类型暂不支持。单文件限制为 10 MiB。
+
+下载时同时检查 `Content-Length` 和实际读取字节数，拒绝空文件、HTML/JSON 响应及重定向。图片签名检测只用于初步识别格式，不保证图片完整或可解码；不支持的格式返回 `isError: true` 和文本说明。
 
 ## 🧪 MCP Inspector 调试
 
@@ -348,6 +340,8 @@ GET /zentao/file-download-100.html
 
 其他禅道版本尚未系统验证。
 
+JSON 请求和附件下载均设置 15 秒超时，且不会自动跟随重定向或重试。JSON 请求检查外层 `status` / `data` 并解析内层数据，但尚未对业务字段执行完整的运行时结构校验。
+
 ## 🔒 安全说明
 
 本项目面向获得授权的内部开发与调试场景。
@@ -370,4 +364,4 @@ GET /zentao/file-download-100.html
 
 ## 📄 License
 
-暂未指定开源许可证。公开仓库中的源码不代表企业内部禅道数据或凭据可以公开使用。
+`package.json` 标记为 `private: true`，许可证字段为 `ISC`；仓库目前没有独立的 `LICENSE` 文件。公开仓库中的源码不代表企业内部禅道数据或凭据可以公开使用。
