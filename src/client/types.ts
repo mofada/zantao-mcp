@@ -67,5 +67,50 @@ export interface ZentaoBugDetail {
 
 export interface BugDetailResponse {
 	bug: ZentaoBugDetail
+
+	actions: ZentaoBugActions
 }
+
+/**
+ * 禅道操作记录中的字段变更明细。
+ */
+export interface ZentaoActionHistory {
+	id: string
+	action: string
+	field: string
+	old: string
+	new: string
+	diff: string
+}
+
+/**
+ * 禅道 Bug 操作记录。
+ *
+ * opened：创建
+ * resolved：解决
+ * activated：重新激活
+ * assigned：指派
+ *
+ * action 使用 string，兼容其他操作类型。
+ */
+export interface ZentaoBugAction {
+	id: string
+	objectType: string
+	objectID: string
+	product: string
+	project: string
+	actor: string
+	action: string
+	date: string
+	comment: string
+	extra: string
+	read: string
+	appendLink?: string
+	history: ZentaoActionHistory[]
+}
+
+/**
+ * 旧版禅道接口使用 Action ID 作为对象 Key。
+ */
+export type ZentaoBugActions = Record<string, ZentaoBugAction>
 

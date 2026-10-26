@@ -50,10 +50,12 @@ export function registerBugTools(server: McpServer, client: ZentaoClient) {
 		},
 	)
 
+
 	server.registerTool(
 		'zentao_get_bug',
 		{
-			description: '根据禅道 Bug ID 获取详情，包括标题、状态、优先级和重现步骤。适用于用户要求分析某个具体 Bug 的场景。',
+			description:
+				'根据禅道 Bug ID 获取完整详情，包括标题、状态、优先级、重现步骤、附件、操作历史、评论和字段变更记录。适用于分析 Bug、了解历史修复过程以及查看重新激活原因。',
 			inputSchema: z.object({
 				bugId: z
 					.string()
@@ -66,9 +68,10 @@ export function registerBugTools(server: McpServer, client: ZentaoClient) {
 				const data = await client.getBug(bugId)
 				const bug = data.bug
 
-				// 1. 解析 HTML，提取纯文本和图片
-				const parsedSteps = parseBugHtml(bug.steps ?? '')
+				// 1. 解析重现步骤，提取纯文本和图片
+				const steps = parseBugHtml(bug.steps ?? '')
 
+				// 2. 提取附件
 				const attachments = Object.values(bug.files ?? {}).map(file => ({
 					id: file.id,
 					name: file.title,
@@ -76,20 +79,42 @@ export function registerBugTools(server: McpServer, client: ZentaoClient) {
 					size: Number(file.size),
 				}))
 
+				// 3. 提取操作历史
+				const actions = Object.values(data.actions ?? {})
+					.map(action => ({
+						id: action.id,
+						actor: action.actor,
+						action: action.action,
+						date: action.date,
+
+						// 评论可能包含重要的接口响应、补充说明
+						// 复用 HTML 解析逻辑，同时保留原始评论
+						comment: parseBugHtml(action.comment ?? '').text,
+						// commentRaw: action.comment ?? '',
+					}))
+					.sort((a, b) =>
+						a.date.localeCompare(b.date) ||
+						Number(a.id) - Number(b.id),
+					)
+
+				// 4. 组织 MCP 工具输出
+				const result = {
+					id: bug.id,
+					title: bug.title,
+					status: bug.status,
+					priority: bug.pri,
+					severity: bug.severity,
+					assignedTo: bug.assignedTo,
+					steps,
+					attachments,
+					actions,
+				}
+
 				return {
 					content: [
 						{
-							type: 'text',
-							text: JSON.stringify({
-								id: bug.id,
-								title: bug.title,
-								status: bug.status,
-								priority: bug.pri,
-								severity: bug.severity,
-								assignedTo: bug.assignedTo,
-								steps: parsedSteps,
-								attachments,
-							}),
+							type: 'text' as const,
+							text: JSON.stringify(result),
 						},
 					],
 				}
@@ -106,7 +131,7 @@ export function registerBugTools(server: McpServer, client: ZentaoClient) {
 					],
 				}
 			}
-		}
+		},
 	)
 
 	server.registerTool(
