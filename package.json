@@ -9,7 +9,7 @@
     "start": "node --env-file=.env dist/index.js",
     "typecheck": "tsc --noEmit",
     "test:unit": "node --import tsx --test \"tests/**/*.test.ts\"",
-    "inspector": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./tests/inspector.ps1"
+    "inspector": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/inspector.ps1"
   },
   "keywords": [],
   "author": "",
