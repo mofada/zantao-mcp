@@ -13,7 +13,7 @@
 当前支持：
 
 - 获取登录账号的 Bug 列表。
-- 根据 Bug ID 获取标题、状态、优先级、指派人和复现步骤。
+- 根据 Bug ID 获取标题、状态、优先级、严重程度、指派人、复现步骤及操作历史和纯文本评论。
 - 解析禅道富文本及不完整 HTML，提取图片引用。
 - 返回 Bug 附件清单，通过附件 ID 获取 PNG/JPEG 图片。
 - 使用 MCP Inspector 调试工具，并通过本地 Mock HTTP 服务验证 MCP 调用链。
@@ -40,7 +40,7 @@
 - [x] MCP Server 初始化、stdio 通信、依赖注入。
 - [x] `zentao_ping`：检查服务是否可调用。
 - [x] `zentao_list_my_bugs`：读取当前账号的 Bug 列表。
-- [x] `zentao_get_bug`：按 Bug ID 获取详情、复现文本、图片引用和附件元数据。
+- [x] `zentao_get_bug`：按 Bug ID 获取详情、复现文本、图片引用、附件元数据及操作历史和纯文本评论。
 - [x] `zentao_get_attachment`：下载并返回 PNG/JPEG 图片。
 - [x] `ZentaoClient`：Cookie 认证、旧版禅道双层 JSON 解析、HTTP 异常及超时处理。
 - [x] Bug HTML 解析，兼容部分不规范富文本。
@@ -195,7 +195,7 @@ pnpm run test:unit
 
 ### `zentao_get_bug`
 
-按 Bug ID 读取详情，并将富文本步骤转换为可读文本。`bugId` 必须为不带前导零的正整数字符串，不能传数字类型、`"0"` 或 `"01"`。参数：
+按 Bug ID 读取详情，并将富文本步骤和操作历史中的评论转换为可读文本。操作历史包含操作者、动作和时间，不返回字段变更明细。`bugId` 必须为不带前导零的正整数字符串，不能传数字类型、`"0"` 或 `"01"`。参数：
 
 ```json
 {
@@ -224,6 +224,15 @@ pnpm run test:unit
       "extension": "png",
       "size": 1024
     }
+  ],
+  "actions": [
+    {
+      "id": "2001",
+      "actor": "developer",
+      "action": "commented",
+      "date": "2026-10-14 10:00:00",
+      "comment": "已补充复现说明，请查看附件截图。"
+    }
   ]
 }
 ```
@@ -231,6 +240,8 @@ pnpm run test:unit
 注意：`steps.images` 来自 HTML 中的图片地址，而 `attachments` 来自 `bug.files` 附件元数据；**两者不一定一一对应**，不能直接把图片 URL 中的数字当作附件 ID。
 
 解析器移除 `script`、`style`、`noscript` 文本，整理段落和空白，并对图片地址去重；图片地址保留原值，不会补全为绝对 URL 或自动下载。缺少步骤时返回空文本和空图片数组，缺少附件时返回空数组；`assignedTo` 未提供时会从 JSON 结果中省略。
+
+`actions` 来自禅道的操作记录，按时间升序排列，同一时间按操作 ID 升序排列。每条包含 `id`、`actor`、`action`、`date` 和纯文本 `comment`；缺少操作记录时返回空数组。当前不返回评论原始 HTML、评论图片引用或 `history` 中的字段变更明细。
 
 ### `zentao_get_attachment`
 
@@ -364,4 +375,6 @@ JSON 请求和附件下载均设置 15 秒超时，且不会自动跟随重定�
 
 ## 📄 License
 
-`package.json` 标记为 `private: true`，许可证字段为 `ISC`；仓库目前没有独立的 `LICENSE` 文件。公开仓库中的源码不代表企业内部禅道数据或凭据可以公开使用。
+本项目采用 [ISC 许可证](./LICENSE)，版权声明及完整条款见 LICENSE 文件，与 `package.json` 中的 `license: "ISC"` 一致。
+
+`private: true` 用于防止误发布到 npm，不影响源码按 ISC 许可证公开使用。许可证适用于本项目代码，不授予企业内部禅道数据、附件或凭据的公开使用权限；第三方依赖遵循各自的许可证。

@@ -55,7 +55,7 @@ export function registerBugTools(server: McpServer, client: ZentaoClient) {
 		'zentao_get_bug',
 		{
 			description:
-				'根据禅道 Bug ID 获取完整详情，包括标题、状态、优先级、重现步骤、附件、操作历史、评论和字段变更记录。适用于分析 Bug、了解历史修复过程以及查看重新激活原因。',
+				'根据禅道 Bug ID 获取标题、状态、优先级、严重程度、指派人、重现步骤、附件元数据及操作历史。操作历史包含操作者、动作、时间和纯文本评论，不包含字段变更明细。',
 			inputSchema: z.object({
 				bugId: z
 					.string()
@@ -88,9 +88,8 @@ export function registerBugTools(server: McpServer, client: ZentaoClient) {
 						date: action.date,
 
 						// 评论可能包含重要的接口响应、补充说明
-						// 复用 HTML 解析逻辑，同时保留原始评论
+						// 复用 HTML 解析逻辑，仅返回纯文本评论
 						comment: parseBugHtml(action.comment ?? '').text,
-						// commentRaw: action.comment ?? '',
 					}))
 					.sort((a, b) =>
 						a.date.localeCompare(b.date) ||
